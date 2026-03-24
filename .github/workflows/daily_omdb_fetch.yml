@@ -1,0 +1,51 @@
+name: Daily OMDb Scores Fetch
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 8am UTC daily (offset 1hr from streaming job)
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pandas python-dotenv supabase
+
+      - name: Run OMDb scores fetcher
+        env:
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 -m pipeline.omdb_scores
+
+      - name: Show progress summary
+        env:
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 -m pipeline.omdb_scores --status
+
+      - name: Commit updated progress file
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/processed/omdb_progress.csv
+          git diff --staged --quiet || git commit -m "chore: omdb scores progress update [skip ci]"
+          git push
