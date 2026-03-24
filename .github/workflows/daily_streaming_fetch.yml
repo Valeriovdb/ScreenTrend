@@ -1,0 +1,47 @@
+name: Daily Streaming Dates Fetch
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # 7am UTC daily (9am CET)
+  workflow_dispatch:        # allow manual trigger from GitHub UI
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pandas python-dotenv supabase
+
+      - name: Run streaming dates fetcher
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 -m pipeline.streaming_dates
+
+      - name: Show progress summary
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 -m pipeline.streaming_dates --status
+
+      - name: Commit updated progress file
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/processed/streaming_dates_progress.csv
+          git diff --staged --quiet || git commit -m "chore: streaming dates progress update [skip ci]"
+          git push
