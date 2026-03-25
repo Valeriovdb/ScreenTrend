@@ -1,18 +1,9 @@
-# Data
 pandas==2.2.2
 kaggle==1.6.17
-
-# Database
 supabase==2.10.0
-
-# LLM
 openai==1.51.0
-
-# App
 streamlit==1.40.0
 plotly==5.24.1
-
-# Utilities
 python-dotenv==1.0.1
 requests==2.32.3
 tqdm==4.66.5
