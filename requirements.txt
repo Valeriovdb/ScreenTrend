@@ -1,9 +1,7 @@
-pandas==2.2.2
-kaggle==1.6.17
-supabase==2.10.0
-openai==1.51.0
-streamlit==1.40.0
-plotly==5.24.1
-python-dotenv==1.0.1
-requests==2.32.3
-tqdm==4.66.5
+pandas
+supabase
+openai
+streamlit
+plotly
+python-dotenv
+requests
