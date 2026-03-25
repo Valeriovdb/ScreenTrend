@@ -629,14 +629,6 @@ if page == "Market Context":
         kpi("Original languages", df["original_language"].nunique(),
             f"dominant: {top_lang_name}")
 
-    # ── DEBUG (remove after diagnosis) ────────────────────────────────────
-    import plotly
-    st.write("release_year dtype:", df["release_year"].dtype,
-             "| nulls:", int(df["release_year"].isna().sum()),
-             "| sample values:", df["release_year"].dropna().unique()[:5].tolist(),
-             "| plotly:", plotly.__version__)
-    # ── END DEBUG ──────────────────────────────────────────────────────────
-
     # ══════════════════════════════════════════════════════════════════════
     # SECTION 1 — Release volume & structure
     # ══════════════════════════════════════════════════════════════════════
