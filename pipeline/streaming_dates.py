@@ -143,11 +143,12 @@ def run(limit: int = DAILY_LIMIT):
                 "streaming_dates": str(dates) if dates else None,
                 "fetched_at": datetime.utcnow().strftime("%Y-%m-%d"),
             })
-            updates.append({
-                "id": film["id"],
-                "days_to_streaming": days_to_streaming,
-                "streaming_platform": primary_platform or None,
-            })
+            if dates:
+                updates.append({
+                    "id": film["id"],
+                    "days_to_streaming": days_to_streaming,
+                    "streaming_platform": primary_platform,
+                })
 
             symbol = "✓" if dates else "·"
             print(f"  {symbol} {film['imdb_id']} — {primary_platform or 'not on streaming'}")

@@ -34,7 +34,6 @@ STREAMING_PLATFORMS = {
     384: "HBO Max",
     531: "Paramount+",
     386: "Peacock",
-    387: "Peacock",
     15:  "Hulu",
     283: "Crunchyroll",
 }

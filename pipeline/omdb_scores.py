@@ -130,13 +130,14 @@ def run(limit: int = DAILY_LIMIT):
     progress = pd.concat([progress, pd.DataFrame(new_rows)], ignore_index=True)
     save_progress(progress)
 
-    # Write scores to Supabase
+    # Write scores to Supabase in batches
     if updates:
         print(f"\nWriting {len(updates)} score updates to Supabase...")
-        for u in updates:
-            client.table("movies").update(
-                {"rt_score": u.get("rt_score"), "metacritic": u.get("metacritic")}
-            ).eq("id", u["id"]).execute()
+        batch_size = 100
+        for i in range(0, len(updates), batch_size):
+            client.table("movies").upsert(
+                updates[i:i + batch_size], on_conflict="id"
+            ).execute()
         print("Done.")
 
     found = sum(1 for r in new_rows if r["status"] == "found")

@@ -3,6 +3,7 @@ Database helpers: Supabase schema creation and data loading.
 """
 
 import os
+import math
 import pandas as pd
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -83,15 +84,8 @@ def load_movies(df: pd.DataFrame, batch_size: int = 100):
         if col in df.columns:
             df[col] = df[col].apply(lambda x: int(x) if pd.notna(x) else None)
 
-    def clean(val):
-        """Recursively replace float NaN with None for JSON safety."""
-        import math
-        if isinstance(val, float) and math.isnan(val):
-            return None
-        return val
-
     records = [
-        {k: clean(v) for k, v in row.items()}
+        {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in row.items()}
         for row in df.to_dict(orient="records")
     ]
     total = len(records)
@@ -103,6 +97,23 @@ def load_movies(df: pd.DataFrame, batch_size: int = 100):
         print(f"  {min(i + batch_size, total)}/{total}", end="\r")
 
     print(f"\nDone — {total:,} films loaded.")
+
+
+def paginate_all(client, table: str, select: str, filters: list = None, page_size: int = 1000) -> list:
+    """Fetch all rows from a Supabase table, bypassing the default 1,000 row limit."""
+    rows = []
+    offset = 0
+    while True:
+        q = client.table(table).select(select)
+        if filters:
+            for method, col, val in filters:
+                q = getattr(q, method)(col, val)
+        batch = q.range(offset, offset + page_size - 1).execute().data
+        rows.extend(batch)
+        if len(batch) < page_size:
+            break
+        offset += page_size
+    return rows
 
 
 def fetch_movies(filters: dict = None) -> pd.DataFrame:
