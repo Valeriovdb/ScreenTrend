@@ -26,20 +26,8 @@ section[data-testid="stSidebar"] { background: #1e293b !important; border-right:
 section[data-testid="stSidebar"] > div:first-child { padding: 1.5rem 1rem !important; }
 section[data-testid="stSidebar"] .stMarkdown strong { color: #f1f5f9 !important; font-size: 0.88rem; letter-spacing: 0.03em; }
 section[data-testid="stSidebar"] .stCaption p { color: #475569 !important; font-size: 0.70rem !important; }
-section[data-testid="stSidebar"] .stRadio label,
-section[data-testid="stSidebar"] [data-testid="stRadio"] label,
-section[data-testid="stSidebar"] .stRadio label p,
-section[data-testid="stSidebar"] [data-testid="stRadio"] label p,
-section[data-testid="stSidebar"] [data-testid="stRadio"] span,
-section[data-testid="stSidebar"] [data-testid="stRadio"] div,
-section[data-testid="stSidebar"] [role="radiogroup"] label,
-section[data-testid="stSidebar"] [role="radiogroup"] p,
-section[data-testid="stSidebar"] [role="radiogroup"] span { color: #94a3b8 !important; font-size: 0.82rem !important; text-transform: none !important; letter-spacing: normal !important; font-weight: 400 !important; }
-section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] input:checked ~ div p,
-section[data-testid="stSidebar"] .stRadio [aria-checked="true"] ~ div p,
-section[data-testid="stSidebar"] [data-testid="stRadio"] [aria-checked="true"] span,
-section[data-testid="stSidebar"] [role="radiogroup"] [aria-checked="true"] span,
-section[data-testid="stSidebar"] [role="radiogroup"] [aria-checked="true"] p { color: #f1f5f9 !important; font-weight: 600 !important; }
+section[data-testid="stSidebar"] * { color: #cbd5e1 !important; }
+section[data-testid="stSidebar"] .stMarkdown strong { color: #f1f5f9 !important; }
 section[data-testid="stSidebar"] .stMarkdown p { color: #475569 !important; font-size: 0.65rem !important; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
 section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stSlider label { color: #64748b !important; font-size: 0.75rem !important; }
