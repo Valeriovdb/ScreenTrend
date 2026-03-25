@@ -3,5 +3,6 @@ supabase
 openai
 streamlit
 plotly
+altair<5
 python-dotenv
 requests
