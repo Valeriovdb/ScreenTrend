@@ -309,7 +309,7 @@ def load_data() -> pd.DataFrame:
         return df
 
     df["themes"] = df["themes"].apply(lambda x: x if isinstance(x, list) else [])
-    df["release_year"] = pd.to_numeric(df["release_year"], errors="coerce")
+    df["release_year"] = pd.to_numeric(df["release_year"], errors="coerce").astype("Int64")
     df["release_type_label"] = df["release_type"].map(RELEASE_TYPE_LABELS).fillna("Unknown")
     return df
 
