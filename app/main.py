@@ -498,24 +498,19 @@ if page == "Market Context":
     full_years    = [y for y in years if y < current_year]
 
     def mark_partial(fig):
-        fig.update_xaxes(
-            tickmode="array",
-            tickvals=years,
-            ticktext=[str(y) for y in years],
-        )
+        if years:
+            fig.update_xaxes(
+                tickmode="array",
+                tickvals=years,
+                ticktext=[str(y) for y in years],
+                range=[years[0] - 0.5, years[-1] + 0.5],
+            )
         for yr in partial_years:
             fig.add_vrect(
                 x0=yr - 0.45, x1=yr + 0.45,
-                fillcolor="rgba(251,191,36,0.08)",
-                line_color="rgba(251,191,36,0.4)",
+                fillcolor="rgba(251,191,36,0.06)",
+                line_color="rgba(251,191,36,0.3)",
                 line_width=1, line_dash="dot",
-            )
-            fig.add_annotation(
-                x=yr, y=1.0, yref="paper", text="partial",
-                showarrow=False,
-                font=dict(size=8, color="#b45309"),
-                bgcolor="rgba(254,243,199,0.9)",
-                bordercolor="#fcd34d", borderwidth=1, borderpad=3,
             )
         return fig
 
@@ -599,6 +594,16 @@ if page == "Market Context":
             with col:
                 signal(btype, btxt, body)
         st.markdown("<div style='margin-bottom:1.5rem;'></div>", unsafe_allow_html=True)
+
+    # ── Provisional data note ──────────────────────────────────────────────
+    if partial_years:
+        st.markdown(
+            f'<div style="font-size:0.72rem;color:#b45309;background:#fefce8;border:1px solid #fcd34d;'
+            f'border-radius:6px;padding:8px 12px;margin-bottom:1rem;">'
+            f'⚠ {", ".join(str(y) for y in partial_years)} data is incomplete — '
+            f'collection still in progress. Treat time-series values for this year as provisional.</div>',
+            unsafe_allow_html=True,
+        )
 
     # ── Tier-1 KPIs ────────────────────────────────────────────────────────
     streaming_only = df[df["release_type"] == "streaming_only"]
@@ -720,9 +725,16 @@ if page == "Market Context":
                 legend=dict(orientation="h", y=1.08, x=0),
                 yaxis_title="$M",
             )
+            if years:
+                fig_avg.update_xaxes(
+                    tickmode="array",
+                    tickvals=years,
+                    ticktext=[str(y) for y in years],
+                    range=[years[0] - 0.5, years[-1] + 0.5],
+                )
             for yr in partial_years:
                 fig_avg.add_vrect(x0=yr-0.3, x1=yr+0.3,
-                                  fillcolor="rgba(251,191,36,0.08)", line_width=0)
+                                  fillcolor="rgba(251,191,36,0.06)", line_width=0)
             st.plotly_chart(fig_avg, use_container_width=True)
             st.markdown(
                 '<span style="font-size:0.70rem;color:#94a3b8;">'
@@ -752,9 +764,16 @@ if page == "Market Context":
                                line_color="#e2e8f0", line_width=1)
             chart_style(fig_conc, height=240)
             fig_conc.update_layout(yaxis=dict(range=[0, 100], ticksuffix="%"))
+            if years:
+                fig_conc.update_xaxes(
+                    tickmode="array",
+                    tickvals=years,
+                    ticktext=[str(y) for y in years],
+                    range=[years[0] - 0.5, years[-1] + 0.5],
+                )
             for yr in partial_years:
                 fig_conc.add_vrect(x0=yr-0.3, x1=yr+0.3,
-                                   fillcolor="rgba(251,191,36,0.08)", line_width=0)
+                                   fillcolor="rgba(251,191,36,0.06)", line_width=0)
             st.plotly_chart(fig_conc, use_container_width=True)
             st.markdown(
                 '<span style="font-size:0.70rem;color:#94a3b8;">'
