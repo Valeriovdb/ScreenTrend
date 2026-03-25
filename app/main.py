@@ -30,10 +30,16 @@ section[data-testid="stSidebar"] .stRadio label,
 section[data-testid="stSidebar"] [data-testid="stRadio"] label,
 section[data-testid="stSidebar"] .stRadio label p,
 section[data-testid="stSidebar"] [data-testid="stRadio"] label p,
-section[data-testid="stSidebar"] [data-testid="stRadio"] span { color: #94a3b8 !important; font-size: 0.82rem !important; text-transform: none !important; letter-spacing: normal !important; font-weight: 400 !important; }
+section[data-testid="stSidebar"] [data-testid="stRadio"] span,
+section[data-testid="stSidebar"] [data-testid="stRadio"] div,
+section[data-testid="stSidebar"] [role="radiogroup"] label,
+section[data-testid="stSidebar"] [role="radiogroup"] p,
+section[data-testid="stSidebar"] [role="radiogroup"] span { color: #94a3b8 !important; font-size: 0.82rem !important; text-transform: none !important; letter-spacing: normal !important; font-weight: 400 !important; }
 section[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] input:checked ~ div p,
 section[data-testid="stSidebar"] .stRadio [aria-checked="true"] ~ div p,
-section[data-testid="stSidebar"] [data-testid="stRadio"] [aria-checked="true"] span { color: #f1f5f9 !important; font-weight: 600 !important; }
+section[data-testid="stSidebar"] [data-testid="stRadio"] [aria-checked="true"] span,
+section[data-testid="stSidebar"] [role="radiogroup"] [aria-checked="true"] span,
+section[data-testid="stSidebar"] [role="radiogroup"] [aria-checked="true"] p { color: #f1f5f9 !important; font-weight: 600 !important; }
 section[data-testid="stSidebar"] .stMarkdown p { color: #475569 !important; font-size: 0.65rem !important; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
 section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stSlider label { color: #64748b !important; font-size: 0.75rem !important; }
@@ -503,7 +509,6 @@ if page == "Market Context":
                 tickmode="array",
                 tickvals=years,
                 ticktext=[str(y) for y in years],
-                range=[years[0] - 0.5, years[-1] + 0.5],
             )
         for yr in partial_years:
             fig.add_vrect(
