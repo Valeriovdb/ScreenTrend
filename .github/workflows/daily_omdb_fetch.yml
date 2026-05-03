@@ -31,6 +31,23 @@ jobs:
       - name: Show installed package versions
         run: pip show supabase requests pandas
 
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "$OMDB_API_KEY" ]   && missing="$missing OMDB_API_KEY"
+          [ -z "$SUPABASE_URL" ]   && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_KEY" ]   && missing="$missing SUPABASE_KEY"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Missing secrets:$missing"
+            echo "Add them at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "All required secrets are set."
+        env:
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
       - name: Run OMDb scores fetcher
         env:
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}

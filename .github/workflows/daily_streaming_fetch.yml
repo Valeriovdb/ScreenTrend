@@ -31,6 +31,23 @@ jobs:
       - name: Show installed package versions
         run: pip show supabase requests pandas
 
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "$RAPIDAPI_KEY" ]   && missing="$missing RAPIDAPI_KEY"
+          [ -z "$SUPABASE_URL" ]   && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_KEY" ]   && missing="$missing SUPABASE_KEY"
+          if [ -n "$missing" ]; then
+            echo "ERROR: Missing secrets:$missing"
+            echo "Add them at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "All required secrets are set."
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
       - name: Run streaming dates fetcher
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
