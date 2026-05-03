@@ -26,8 +26,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install requests pandas python-dotenv supabase
+        run: pip install requests pandas python-dotenv "supabase>=2.3.0,<3.0.0"
+
+      - name: Show installed package versions
+        run: pip show supabase requests pandas
 
       - name: Run streaming dates fetcher
         env:
@@ -37,6 +39,7 @@ jobs:
         run: python3 -m pipeline.streaming_dates
 
       - name: Show progress summary
+        continue-on-error: true
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
