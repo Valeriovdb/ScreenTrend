@@ -2,14 +2,14 @@
 ScreenTrend — Streamlit app
 """
 
-import os
 from datetime import date
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
-from supabase import create_client
+
+from pipeline.db import fetch_movie_rows
 
 load_dotenv()
 
@@ -241,9 +241,6 @@ THEME_GLOSSARY = {
     },
 }
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]
-
 RELEASE_TYPE_LABELS = {
     "theatrical":       "Theatrical only",
     "theatrical_first": "Theatrical → Streaming",
@@ -287,21 +284,9 @@ def fmt_outcome(val, col: str) -> str:
     return str(val)
 
 
-@st.cache_resource
-def get_db():
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
 @st.cache_data(ttl=3600)
 def load_data() -> pd.DataFrame:
-    db = get_db()
-    rows, offset, page_size = [], 0, 1000
-    while True:
-        batch = db.table("movies").select("*").range(offset, offset + page_size - 1).execute().data
-        rows.extend(batch)
-        if len(batch) < page_size:
-            break
-        offset += page_size
+    rows = fetch_movie_rows("*")
     df = pd.DataFrame(rows)
     if df.empty:
         return df

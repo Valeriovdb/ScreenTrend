@@ -1,5 +1,5 @@
 pandas
-supabase
+psycopg[binary]
 openai
 streamlit
 plotly==5.24.1

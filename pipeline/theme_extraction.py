@@ -6,7 +6,7 @@ For each film, sends the overview to OpenAI and extracts:
   - narrative_pattern (single label)
   - confidence per theme (0.0 - 1.0)
 
-Results are written back to Supabase and to data/processed/themes.csv.
+Results are written back to Postgres and to data/processed/themes.csv.
 
 Cost estimate: ~$0.40 for 4,000 films using gpt-4o-mini.
 """
@@ -20,7 +20,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from pipeline.db import get_client, fetch_movies
+from pipeline.db import fetch_movie_rows, update_movies
 
 load_dotenv()
 
@@ -112,26 +112,12 @@ def extract_themes_for_film(title: str, overview: str) -> dict:
 def run(batch_size: int = 50, delay: float = 0.1):
     """
     Extract themes for all films that don't yet have theme data.
-    Writes results to Supabase and to data/processed/themes.csv.
+    Writes results to Postgres and to data/processed/themes.csv.
     """
-    db = get_client()
-
-    # Fetch films without themes — paginate past Supabase's 1,000 row default
-    films = []
-    offset = 0
-    while True:
-        response = (
-            db.table("movies")
-            .select("id, title, overview")
-            .is_("themes", "null")
-            .range(offset, offset + 999)
-            .execute()
-        )
-        batch = response.data
-        films.extend(batch)
-        if len(batch) < 1000:
-            break
-        offset += 1000
+    films = fetch_movie_rows(
+        columns=("id", "title", "overview"),
+        where_sql="themes is null",
+    )
 
     if not films:
         print("All films already have theme data.")
@@ -153,16 +139,16 @@ def run(batch_size: int = 50, delay: float = 0.1):
         }
         results.append(record)
 
-        # Write back to Supabase in batches
+        # Write back to Postgres in batches
         if len(results) % batch_size == 0:
-            _upsert_themes(db, results[-batch_size:])
+            _upsert_themes(results[-batch_size:])
 
         time.sleep(delay)  # gentle rate limiting
 
     # Final batch
     remainder = len(results) % batch_size
     if remainder:
-        _upsert_themes(db, results[-remainder:])
+        _upsert_themes(results[-remainder:])
 
     # Save locally as well
     df = pd.DataFrame(results)
@@ -172,11 +158,8 @@ def run(batch_size: int = 50, delay: float = 0.1):
     return df
 
 
-def _upsert_themes(db, records: list):
-    for record in records:
-        rid = record["id"]
-        fields = {k: v for k, v in record.items() if k != "id"}
-        db.table("movies").update(fields).eq("id", rid).execute()
+def _upsert_themes(records: list):
+    update_movies(records)
 
 
 if __name__ == "__main__":

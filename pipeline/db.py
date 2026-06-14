@@ -1,24 +1,71 @@
 """
-Database helpers: Supabase schema creation and data loading.
+Database helpers for ScreenTrend's Postgres database.
+
+The project uses Neon in production, but this module only depends on a standard
+Postgres DATABASE_URL so it also works with local Postgres if needed.
 """
 
-import os
 import math
+import os
+from typing import Any, Optional, Union
+
 import pandas as pd
-from supabase import create_client, Client
+import psycopg
 from dotenv import load_dotenv
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 load_dotenv()
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("NEON_DATABASE_URL")
+MOVIES_TABLE = "public.movies"
+
+MOVIE_COLUMNS = {
+    "id",
+    "imdb_id",
+    "title",
+    "original_title",
+    "release_date",
+    "release_year",
+    "original_language",
+    "genres",
+    "runtime",
+    "overview",
+    "vote_average",
+    "vote_count",
+    "popularity",
+    "revenue",
+    "top_cast",
+    "director",
+    "imdb_rating",
+    "imdb_votes",
+    "production_companies",
+    "production_countries",
+    "status",
+    "tagline",
+    "themes",
+    "narrative_pattern",
+    "theme_confidence",
+    "oscar_nominations",
+    "oscar_wins",
+    "bafta_nominations",
+    "bafta_wins",
+    "golden_globe_nominations",
+    "golden_globe_wins",
+    "festival_awards",
+    "total_nominations",
+    "total_wins",
+    "rt_score",
+    "metacritic",
+    "release_type",
+    "streaming_platform",
+    "days_to_streaming",
+    "created_at",
+}
+
+JSONB_COLUMNS = {"theme_confidence", "festival_awards"}
 
 
-def get_client() -> Client:
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
-# SQL to create the movies table — run this once in the Supabase SQL editor
 CREATE_TABLE_SQL = """
 create table if not exists movies (
     id            bigint primary key,           -- TMDB id
@@ -39,6 +86,10 @@ create table if not exists movies (
     director      text,
     imdb_rating   float,
     imdb_votes    int,
+    production_companies text,
+    production_countries text,
+    status        text,
+    tagline       text,
     -- theme extraction (populated later)
     themes        text[],
     narrative_pattern text,
@@ -71,59 +122,157 @@ create index if not exists idx_movies_themes on movies using gin(themes);
 """
 
 
-def load_movies(df: pd.DataFrame, batch_size: int = 100):
-    """Upsert movies dataframe into Supabase."""
-    client = get_client()
+def get_connection() -> psycopg.Connection:
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Add your Neon pooled connection string to .env."
+        )
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row, prepare_threshold=None)
 
-    # Clean: replace NaN with None for JSON compatibility
+
+def init_schema() -> None:
+    """Create the movies table and indexes if they do not exist."""
+    with get_connection() as conn:
+        conn.execute(CREATE_TABLE_SQL)
+
+
+def _clean_value(column: str, value: Any) -> Any:
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if pd.isna(value) if not isinstance(value, (list, dict)) else False:
+        return None
+    if column in JSONB_COLUMNS and isinstance(value, dict):
+        return Jsonb(value)
+    return value
+
+
+def _clean_record(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        column: _clean_value(column, value)
+        for column, value in record.items()
+        if column in MOVIE_COLUMNS
+    }
+
+
+def _column_list(columns: Union[list[str], tuple[str, ...], str]) -> str:
+    if columns == "*":
+        return "*"
+    invalid = set(columns) - MOVIE_COLUMNS
+    if invalid:
+        raise ValueError(f"Unknown movie columns: {', '.join(sorted(invalid))}")
+    return ", ".join(columns)
+
+
+def _upsert_records(records: list[dict[str, Any]], batch_size: int = 100) -> None:
+    if not records:
+        return
+
+    columns = sorted(set().union(*(record.keys() for record in records)))
+    if "id" not in columns:
+        raise ValueError("Upsert records must include an id.")
+
+    placeholders = ", ".join(f"%({column})s" for column in columns)
+    column_sql = ", ".join(columns)
+    update_sql = ", ".join(
+        f"{column} = excluded.{column}"
+        for column in columns
+        if column not in {"id", "created_at"}
+    )
+    sql = f"""
+        insert into {MOVIES_TABLE} ({column_sql})
+        values ({placeholders})
+        on conflict (id) do update set {update_sql}
+    """
+
+    rows = [{column: record.get(column) for column in columns} for record in records]
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for i in range(0, len(rows), batch_size):
+                cur.executemany(sql, rows[i : i + batch_size])
+
+
+def update_movies(records: list[dict[str, Any]], batch_size: int = 100) -> None:
+    """Update existing movie rows by id."""
+    if not records:
+        return
+
+    columns = sorted(set().union(*(record.keys() for record in records)) - {"id"})
+    if not columns:
+        return
+
+    invalid = set(columns) - MOVIE_COLUMNS
+    if invalid:
+        raise ValueError(f"Unknown movie columns: {', '.join(sorted(invalid))}")
+
+    set_sql = ", ".join(f"{column} = %({column})s" for column in columns)
+    sql = f"update {MOVIES_TABLE} set {set_sql} where id = %(id)s"
+    rows = [
+        _clean_record({column: record.get(column) for column in [*columns, "id"]})
+        for record in records
+    ]
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for i in range(0, len(rows), batch_size):
+                cur.executemany(sql, rows[i : i + batch_size])
+
+
+def update_movie(movie_id: int, fields: dict[str, Any]) -> None:
+    update_movies([{"id": movie_id, **fields}], batch_size=1)
+
+
+def load_movies(df: pd.DataFrame, batch_size: int = 100) -> None:
+    """Upsert a movies dataframe into Postgres."""
+    init_schema()
     df = df.where(pd.notna(df), None)
 
-    # Convert int columns that may be stored as floats (e.g. 2024.0 -> 2024)
-    int_cols = ["vote_count", "imdb_votes", "revenue", "release_year", "runtime"]
+    int_cols = ["vote_count", "imdb_votes", "revenue", "release_year"]
     for col in int_cols:
         if col in df.columns:
             df[col] = df[col].apply(lambda x: int(x) if pd.notna(x) else None)
 
-    records = [
-        {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in row.items()}
-        for row in df.to_dict(orient="records")
-    ]
+    records = [_clean_record(row) for row in df.to_dict(orient="records")]
     total = len(records)
 
-    print(f"Upserting {total:,} films to Supabase...")
-    for i in range(0, total, batch_size):
-        batch = records[i : i + batch_size]
-        client.table("movies").upsert(batch).execute()
-        print(f"  {min(i + batch_size, total)}/{total}", end="\r")
-
-    print(f"\nDone — {total:,} films loaded.")
+    print(f"Upserting {total:,} films to Postgres...")
+    _upsert_records(records, batch_size=batch_size)
+    print(f"Done - {total:,} films loaded.")
 
 
-def paginate_all(client, table: str, select: str, filters: list = None, page_size: int = 1000) -> list:
-    """Fetch all rows from a Supabase table, bypassing the default 1,000 row limit."""
-    rows = []
-    offset = 0
-    while True:
-        q = client.table(table).select(select)
-        if filters:
-            for method, col, val in filters:
-                q = getattr(q, method)(col, val)
-        batch = q.range(offset, offset + page_size - 1).execute().data
-        rows.extend(batch)
-        if len(batch) < page_size:
-            break
-        offset += page_size
-    return rows
-
-
-def fetch_movies(filters: dict = None) -> pd.DataFrame:
-    """Fetch movies from Supabase with optional filters."""
-    client = get_client()
-    query = client.table("movies").select("*")
+def fetch_movies(
+    filters: Optional[dict[str, Any]] = None,
+    columns: Union[list[str], tuple[str, ...], str] = "*",
+) -> pd.DataFrame:
+    """Fetch movies with optional equality filters."""
+    select_sql = _column_list(columns)
+    params = {}
+    where = []
 
     if filters:
-        for col, val in filters.items():
-            query = query.eq(col, val)
+        invalid = set(filters) - MOVIE_COLUMNS
+        if invalid:
+            raise ValueError(f"Unknown movie columns: {', '.join(sorted(invalid))}")
+        for index, (column, value) in enumerate(filters.items()):
+            key = f"filter_{index}"
+            where.append(f"{column} = %({key})s")
+            params[key] = value
 
-    response = query.execute()
-    return pd.DataFrame(response.data)
+    where_sql = f" where {' and '.join(where)}" if where else ""
+    with get_connection() as conn:
+        rows = conn.execute(f"select {select_sql} from {MOVIES_TABLE}{where_sql}", params).fetchall()
+    return pd.DataFrame(rows)
+
+
+def fetch_movie_rows(
+    columns: Union[list[str], tuple[str, ...], str] = "*",
+    where_sql: str = "",
+    params: Optional[dict[str, Any]] = None,
+) -> list[dict[str, Any]]:
+    """Fetch movie rows for pipeline jobs that need simple SQL predicates."""
+    select_sql = _column_list(columns)
+    predicate = f" where {where_sql}" if where_sql else ""
+    with get_connection() as conn:
+        return conn.execute(
+            f"select {select_sql} from {MOVIES_TABLE}{predicate}",
+            params or {},
+        ).fetchall()

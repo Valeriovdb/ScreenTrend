@@ -95,27 +95,12 @@ def classify(revenue, providers: dict):
 
 
 def run():
-    from pipeline.db import get_client
+    from pipeline.db import fetch_movie_rows, update_movies
 
-    client = get_client()
-
-    # Paginate past Supabase's 1,000 row default
-    films = []
-    page_size = 1000
-    offset = 0
-    while True:
-        response = (
-            client.table("movies")
-            .select("id, revenue, release_date")
-            .is_("release_type", "null")
-            .range(offset, offset + page_size - 1)
-            .execute()
-        )
-        batch = response.data
-        films.extend(batch)
-        if len(batch) < page_size:
-            break
-        offset += page_size
+    films = fetch_movie_rows(
+        columns=("id", "revenue", "release_date"),
+        where_sql="release_type is null",
+    )
 
     print(f"Fetching watch providers + digital dates for {len(films):,} films...")
 
@@ -129,10 +114,14 @@ def run():
         days_to_digital = None
         if digital_date and film.get("release_date"):
             try:
-                theatrical_date = datetime.strptime(film["release_date"][:10], "%Y-%m-%d").date()
+                release_raw = film["release_date"]
+                if isinstance(release_raw, str):
+                    theatrical_date = datetime.strptime(release_raw[:10], "%Y-%m-%d").date()
+                else:
+                    theatrical_date = release_raw
                 diff = (digital_date - theatrical_date).days
                 days_to_digital = diff if diff >= 0 else None
-            except ValueError:
+            except (TypeError, ValueError):
                 pass
 
         updates.append({
@@ -143,16 +132,8 @@ def run():
         })
         time.sleep(0.1)  # two API calls per film — slightly more conservative
 
-    # Write back — use update().eq() per row since upsert requires all NOT NULL cols
-    print("\nWriting to Supabase...")
-    for i, u in enumerate(updates):
-        client.table("movies").update({
-            "release_type":       u["release_type"],
-            "streaming_platform": u["streaming_platform"],
-            "days_to_streaming":  u["days_to_streaming"],
-        }).eq("id", u["id"]).execute()
-        if (i + 1) % 100 == 0:
-            print(f"  {i + 1}/{len(updates)}", end="\r")
+    print("\nWriting to Postgres...")
+    update_movies(updates)
 
     print(f"\nDone.")
     rt = pd.Series([u["release_type"] for u in updates]).value_counts()

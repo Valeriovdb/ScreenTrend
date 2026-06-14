@@ -74,23 +74,12 @@ def save_progress(df: pd.DataFrame):
 
 
 def run(limit: int = DAILY_LIMIT):
-    from pipeline.db import get_client
-    client = get_client()
+    from pipeline.db import fetch_movie_rows, update_movies
 
     progress = load_progress()
     done_ids = set(progress["id"].tolist()) if not progress.empty else set()
 
-    # Fetch all films with imdb_id not yet processed
-    films = []
-    offset = 0
-    while True:
-        r = client.table("movies").select("id, imdb_id").range(
-            offset, offset + 999
-        ).execute()
-        films.extend(r.data)
-        if len(r.data) < 1000:
-            break
-        offset += 1000
+    films = fetch_movie_rows(columns=("id", "imdb_id"))
 
     pending = [f for f in films if f["id"] not in done_ids and f.get("imdb_id")]
     print(f"Progress: {len(done_ids)}/{len(films)} fetched. {len(pending)} remaining.")
@@ -130,14 +119,10 @@ def run(limit: int = DAILY_LIMIT):
     progress = pd.concat([progress, pd.DataFrame(new_rows)], ignore_index=True)
     save_progress(progress)
 
-    # Write scores to Supabase in batches
+    # Write scores to Postgres in batches
     if updates:
-        print(f"\nWriting {len(updates)} score updates to Supabase...")
-        batch_size = 100
-        for i in range(0, len(updates), batch_size):
-            client.table("movies").upsert(
-                updates[i:i + batch_size], on_conflict="id"
-            ).execute()
+        print(f"\nWriting {len(updates)} score updates to Postgres...")
+        update_movies(updates)
         print("Done.")
 
     found = sum(1 for r in new_rows if r["status"] == "found")

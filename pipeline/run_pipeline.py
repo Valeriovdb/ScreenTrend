@@ -46,7 +46,7 @@ def main():
         step_ingest()
 
     if args.all or args.step == "load":
-        print("\n=== Step 2: Load into Supabase ===")
+        print("\n=== Step 2: Load into Postgres ===")
         step_load()
 
     if args.all or args.step == "themes":

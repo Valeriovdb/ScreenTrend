@@ -73,7 +73,7 @@ data/raw/               ← Kaggle bulk downloads (not committed, ~600MB)
 data/processed/         ← Filtered CSVs + daily job progress files
 pipeline/
   ingest.py             ← Filter and clean Kaggle dataset
-  db.py                 ← Supabase client + load helpers
+  db.py                 ← Neon/Postgres connection + load helpers
   theme_extraction.py   ← GPT-4o-mini theme tagging pipeline
   watch_providers.py    ← TMDB watch providers + digital release dates
   omdb_scores.py        ← RT + Metacritic via OMDb (daily, 1K/day)
@@ -86,7 +86,7 @@ app/
   daily_streaming_fetch.yml   ← GitHub Action: runs daily at 7am UTC
 ```
 
-**Backend:** Supabase (Postgres)
+**Backend:** Neon Postgres
 **App:** Streamlit + Plotly
 **LLM:** OpenAI GPT-4o-mini
 
@@ -106,7 +106,7 @@ Theme tags are model-generated and carry uncertainty. Confidence scores are stor
 
 ### Prerequisites
 - Python 3.9+
-- Supabase project
+- Neon project
 - API keys: TMDB, OMDb, OpenAI, RapidAPI, Kaggle
 
 ### Setup
@@ -119,13 +119,32 @@ cp .env.example .env
 # fill in your API keys in .env
 ```
 
+### Migrate from Supabase to Neon
+
+Create a free Neon project, copy its pooled connection string, and set it as `DATABASE_URL` in `.env`.
+
+If you want to copy the existing Supabase table directly, also add a Supabase Postgres connection string as `SUPABASE_DATABASE_URL`. Use the direct connection string for `pg_dump`; if your network is IPv4-only on the free tier, use Supabase's session pooler connection string on port `5432`. Then run:
+
+```bash
+./scripts/migrate_supabase_to_neon.sh
+```
+
+This dumps `public.movies` from Supabase and restores it into Neon. It requires `pg_dump` and `psql` to be installed locally.
+
+If you prefer a clean rebuild from the processed CSV instead:
+
+```bash
+python3 scripts/init_neon_schema.py
+python3 -m pipeline.run_pipeline --step load
+```
+
 ### Run the pipeline
 
 ```bash
 # 1. Filter and clean the dataset (requires Kaggle download first)
 python3 -m pipeline.run_pipeline --step ingest
 
-# 2. Load into Supabase
+# 2. Load into Neon Postgres
 python3 -m pipeline.run_pipeline --step load
 
 # 3. Extract themes (OpenAI, ~$0.40, ~15 min)
@@ -160,7 +179,7 @@ Two GitHub Actions workflows run daily to progressively enrich the dataset:
 
 Progress is tracked in `data/processed/` and committed back to the repo after each run.
 
-Required GitHub Secrets: `SUPABASE_URL`, `SUPABASE_KEY`, `OMDB_API_KEY`, `RAPIDAPI_KEY`
+Required GitHub Secrets: `DATABASE_URL`, `OMDB_API_KEY`, `RAPIDAPI_KEY`
 
 ---
 

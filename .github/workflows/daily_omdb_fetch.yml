@@ -26,17 +26,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests pandas python-dotenv "supabase>=2.3.0,<3.0.0"
+        run: pip install requests pandas python-dotenv "psycopg[binary]"
 
       - name: Show installed package versions
-        run: pip show supabase requests pandas
+        run: pip show psycopg psycopg-binary requests pandas
 
       - name: Check required secrets
         run: |
           missing=""
           [ -z "$OMDB_API_KEY" ]   && missing="$missing OMDB_API_KEY"
-          [ -z "$SUPABASE_URL" ]   && missing="$missing SUPABASE_URL"
-          [ -z "$SUPABASE_KEY" ]   && missing="$missing SUPABASE_KEY"
+          [ -z "$DATABASE_URL" ]   && missing="$missing DATABASE_URL"
           if [ -n "$missing" ]; then
             echo "ERROR: Missing secrets:$missing"
             echo "Add them at: Settings → Secrets and variables → Actions"
@@ -45,22 +44,19 @@ jobs:
           echo "All required secrets are set."
         env:
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run OMDb scores fetcher
         env:
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python3 -m pipeline.omdb_scores
 
       - name: Show progress summary
         continue-on-error: true
         env:
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python3 -m pipeline.omdb_scores --status
 
       - name: Commit updated progress file

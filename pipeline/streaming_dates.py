@@ -87,25 +87,12 @@ def save_progress(df: pd.DataFrame):
 
 
 def run(limit: int = DAILY_LIMIT):
-    from pipeline.db import get_client
+    from pipeline.db import fetch_movie_rows, update_movies
 
-    client = get_client()
     progress = load_progress()
     done_ids = set(progress["id"].tolist()) if not progress.empty else set()
 
-    # Fetch all films with imdb_id not yet processed
-    films = []
-    page_size = 1000
-    offset = 0
-    while True:
-        r = client.table("movies").select("id, imdb_id, release_date").range(
-            offset, offset + page_size - 1
-        ).execute()
-        batch = r.data
-        films.extend(batch)
-        if len(batch) < page_size:
-            break
-        offset += page_size
+    films = fetch_movie_rows(columns=("id", "imdb_id", "release_date"))
 
     pending = [f for f in films if f["id"] not in done_ids and f.get("imdb_id")]
     print(f"Progress: {len(done_ids)}/{len(films)} films fetched. {len(pending)} remaining.")
@@ -124,11 +111,15 @@ def run(limit: int = DAILY_LIMIT):
             days_to_streaming = None
             if earliest and film.get("release_date"):
                 try:
-                    release = datetime.strptime(film["release_date"][:10], "%Y-%m-%d")
+                    release_raw = film["release_date"]
+                    if isinstance(release_raw, str):
+                        release = datetime.strptime(release_raw[:10], "%Y-%m-%d")
+                    else:
+                        release = datetime.combine(release_raw, datetime.min.time())
                     digital = datetime.strptime(earliest, "%Y-%m-%d")
                     diff = (digital - release).days
                     days_to_streaming = diff if diff >= 0 else None
-                except ValueError:
+                except (TypeError, ValueError):
                     pass
 
             # Primary platform = platform with earliest date
@@ -172,14 +163,10 @@ def run(limit: int = DAILY_LIMIT):
     save_progress(progress)
     print(f"\nProgress saved: {len(progress)}/{len(films)} films done.")
 
-    # Write to Supabase
+    # Write to Postgres
     if updates:
-        print("Writing to Supabase...")
-        batch_size = 100
-        for i in range(0, len(updates), batch_size):
-            client.table("movies").upsert(
-                updates[i:i + batch_size], on_conflict="id"
-            ).execute()
+        print("Writing to Postgres...")
+        update_movies(updates)
         print(f"  {len(updates)} films updated.")
 
 
